@@ -1,0 +1,15 @@
+/spmel*
+/spmel_val
+/spmel_test
+/fake_audio
+/hifi-gan
+/sample_audio
+/better_emb_test_wav
+/better_emb_equivalent_batch
+/better_emb_zero_shot
+/log
+/better_emb_more_classes
+/fake_audio_more_classes
+/damp
+/singing_emb_audio
+/singing_one_hot_audio
