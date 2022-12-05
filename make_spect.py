@@ -6,7 +6,11 @@ from scipy import signal
 from scipy.signal import get_window
 from librosa.filters import mel
 from numpy.random import RandomState
+from resemblyzer import VoiceEncoder, preprocess_wav
+import torch
 
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning) 
 
 def butter_highpass(cutoff, fs, order=5):
     nyq = 0.5 * fs
@@ -37,23 +41,38 @@ b, a = butter_highpass(30, 16000, order=5)
 
 
 # audio file directory
-rootDir = './wavs'
+rootDir = '/home/sile/VCTK/sentence_split/val'
 # spectrogram directory
-targetDir = './spmel'
+targetDir = './spmel_pitch_shift'
 
+device = 'cuda:0'
+# embedding_enc = VoiceEncoder()
+embedding_enc = torch.hub.load('RF5/simple-speaker-embedding', 'convgru_embedder').to(device)
+embedding_enc.eval()
 
 dirName, subdirList, _ = next(os.walk(rootDir))
 print('Found directory: %s' % dirName)
 
+speakers = []
+subdirList = ['p225', 'p228', 'p252', 'p256', 'p261', 'p270']
+# subdirList.remove('p225')
+# subdirList.remove('p228')
+# subdirList.remove('p256')
+# subdirList.remove('p270')
+
 for subdir in sorted(subdirList):
+    emb = []
+    utterances = []
+    utterances.append(subdir)
     print(subdir)
     if not os.path.exists(os.path.join(targetDir, subdir)):
         os.makedirs(os.path.join(targetDir, subdir))
     _,_, fileList = next(os.walk(os.path.join(dirName,subdir)))
-    prng = RandomState(int(subdir[1:])) 
+    prng = RandomState(int(subdir[-1:])) 
     for fileName in sorted(fileList):
         # Read audio file
         x, fs = sf.read(os.path.join(dirName,subdir,fileName))
+        emb.append(embedding_enc(torch.tensor(x, dtype=torch.float32).to(device).unsqueeze(0)).squeeze().detach().cpu().numpy())
         # Remove drifting noise
         y = signal.filtfilt(b, a, x)
         # Ddd a little random noise for model roubstness
@@ -66,5 +85,10 @@ for subdir in sorted(subdirList):
         S = np.clip((D_db + 100) / 100, 0, 1)    
         # save spect    
         np.save(os.path.join(targetDir, subdir, fileName[:-4]),
-                S.astype(np.float32), allow_pickle=False)    
+                S.astype(np.float32), allow_pickle=False)  
+        utterances.append(os.path.join(subdir, fileName[:-4]+'.npy'))  
+    utterances.insert(1, np.mean(np.array(emb), axis=0))
+    speakers.append(utterances)
         
+with open(os.path.join(targetDir, 'train.pkl'), 'wb') as handle:
+    pickle.dump(speakers, handle)
